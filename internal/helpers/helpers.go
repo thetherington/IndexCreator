@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -181,4 +182,25 @@ func SedReplace(path, original, new string) error {
 	}
 
 	return nil
+}
+
+func ValidDateInput(date *string) (time.Time, bool) {
+	re := regexp.MustCompile(`\d{4}\-\d{2}\-\d{2}`)
+
+	if re.MatchString(*date) {
+
+		d := strings.Split(*date, "-")
+
+		year, _ := strconv.Atoi(d[0])
+		month, _ := strconv.Atoi(d[1])
+		day, _ := strconv.Atoi(d[2])
+
+		if month > 12 || day > 32 {
+			return time.Now(), false
+		}
+
+		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), true
+	}
+
+	return time.Now(), false
 }

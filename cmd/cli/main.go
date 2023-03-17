@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,69 +43,31 @@ func main() {
 	case "create":
 		createCmd.Parse(os.Args[2:])
 
-		start, valid := ValidDateInput(startPtr)
-		if !valid {
-			fmt.Println("Start value is invalid")
+		if !app.ValidCreateArgs(startPtr, endPtr, createCmd) {
 			os.Exit(1)
 		}
 
-		end, valid := ValidDateInput(endPtr)
-		if !valid {
-			fmt.Println("End value is invalid")
-			os.Exit(1)
+		// Create spin group
+		sm := app.CreateSpinGroups()
+
+		sm.Start()
+
+		// iterate through each date and generate the import in a go routine
+		for x, d := range app.IndexDates {
+			app.wg.Add(1)
+
+			go app.GenerateIndex(d, app.Spinners[x])
 		}
 
-		app.InitDateRanges(start, end)
+		// wait for all to complete
+		app.wg.Wait()
 
-		if len(createCmd.Args()) < 1 {
-			fmt.Println("No export archive provided")
-			os.Exit(1)
-		}
-
-		// Check if the input file exists
-		r, err := os.Open(createCmd.Args()[0])
-		if err != nil {
-			fmt.Println("Archive file provided does not exist")
-			os.Exit(1)
-		}
-		r.Close()
-
-		app.Filename = r.Name()
-
-		// parse the file name to get the index name and date from the filename
-		re := regexp.MustCompile(`(\.\/)*(.*)(\d{4}\.\d{2}\.\d{2})`)
-
-		for _, match := range re.FindAllStringSubmatch(r.Name(), -1) {
-			app.Index = strings.TrimSuffix(match[2], "-")
-			app.FileDate = match[3]
-		}
+		sm.Stop()
 
 	default:
 		fmt.Println("expected 'create' or 'import' subcommands")
 		os.Exit(1)
 	}
-
-	// Create spin group
-	sm := ysmrr.NewSpinnerManager()
-
-	for i := 0; i < len(app.IndexDates); i++ {
-		s := sm.AddSpinner(fmt.Sprintf("%s -- Extracting...", app.IndexDates[i].Format("2006.01.02")))
-		app.Spinners = append(app.Spinners, s)
-	}
-
-	sm.Start()
-
-	// iterate through each date and generate the import in a go routine
-	for x, d := range app.IndexDates {
-		app.wg.Add(1)
-
-		go app.GenerateIndex(d, app.Spinners[x])
-	}
-
-	// wait for all to complete
-	app.wg.Wait()
-
-	sm.Stop()
 
 }
 
@@ -224,23 +185,54 @@ func (app *App) Cleanup() error {
 	return nil
 }
 
-func ValidDateInput(date *string) (time.Time, bool) {
-	re := regexp.MustCompile(`\d{4}\-\d{2}\-\d{2}`)
-
-	if re.MatchString(*date) {
-
-		d := strings.Split(*date, "-")
-
-		year, _ := strconv.Atoi(d[0])
-		month, _ := strconv.Atoi(d[1])
-		day, _ := strconv.Atoi(d[2])
-
-		if month > 12 || day > 32 {
-			return time.Now(), false
-		}
-
-		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), true
+func (app *App) ValidCreateArgs(startDate, endDate *string, createCmd *flag.FlagSet) bool {
+	start, valid := helpers.ValidDateInput(startDate)
+	if !valid {
+		fmt.Println("Start value is invalid")
+		return false
 	}
 
-	return time.Now(), false
+	end, valid := helpers.ValidDateInput(endDate)
+	if !valid {
+		fmt.Println("End value is invalid")
+		return false
+	}
+
+	app.InitDateRanges(start, end)
+
+	if len(createCmd.Args()) < 1 {
+		fmt.Println("No export archive provided")
+		return false
+	}
+
+	// Check if the input file exists
+	r, err := os.Open(createCmd.Args()[0])
+	if err != nil {
+		fmt.Println("Archive file provided does not exist")
+		return false
+	}
+	r.Close()
+
+	app.Filename = r.Name()
+
+	// parse the file name to get the index name and date from the filename
+	re := regexp.MustCompile(`(\.\/)*(.*)(\d{4}\.\d{2}\.\d{2})`)
+
+	for _, match := range re.FindAllStringSubmatch(r.Name(), -1) {
+		app.Index = strings.TrimSuffix(match[2], "-")
+		app.FileDate = match[3]
+	}
+
+	return true
+}
+
+func (app *App) CreateSpinGroups() ysmrr.SpinnerManager {
+	sm := ysmrr.NewSpinnerManager()
+
+	for i := 0; i < len(app.IndexDates); i++ {
+		s := sm.AddSpinner(fmt.Sprintf("%s -- Extracting...", app.IndexDates[i].Format("2006.01.02")))
+		app.Spinners = append(app.Spinners, s)
+	}
+
+	return sm
 }
