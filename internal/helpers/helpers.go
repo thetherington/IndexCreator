@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chelnak/ysmrr"
 )
 
 // Untar takes a destination path and a reader; a tar reader loops over the tarfile
@@ -203,4 +206,28 @@ func ValidDateInput(date *string) (time.Time, bool) {
 	}
 
 	return time.Now(), false
+}
+
+func ElasticDumpRun(node_path string, args []string, s *ysmrr.Spinner, f string) error {
+
+	command := exec.Command(node_path, args...)
+	pipe, _ := command.StdoutPipe()
+
+	command.Start()
+
+	reader := bufio.NewReader(pipe)
+	line, err := reader.ReadString('\n')
+
+	for err == nil {
+		line = strings.TrimSuffix(line, "\n")
+		if len(line) > 60 {
+			line = line[len(line)-60:]
+		}
+		s.UpdateMessage(fmt.Sprintf("%s -- %s", f, line))
+		line, err = reader.ReadString('\n')
+	}
+
+	command.Wait()
+
+	return nil
 }
