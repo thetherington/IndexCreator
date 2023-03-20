@@ -1,7 +1,7 @@
 BINARY_NAME=IndexCreator
 
 build:
-	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME} cmd/cli/*
+	GOARCH=amd64 GOOS=linux go build -o ${BINARY_NAME} main.go
 
 run: build
 	./${BINARY_NAME}
