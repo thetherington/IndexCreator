@@ -38,6 +38,11 @@ func main() {
 	importCmd := flag.NewFlagSet("import", flag.ExitOnError)
 	mntAppNamePtr := importCmd.String("app", "mnt-1", "inSITE Elastic Maintenance App Name (Default: mnt-1)")
 
+	importCreateCmd := flag.NewFlagSet("createImport", flag.ExitOnError)
+	impStartPtr := importCreateCmd.String("start", "", "YYYY-MM-DD")
+	impEndPtr := importCreateCmd.String("end", "", "YYYY-MM-DD")
+	impMntAppNamePtr := importCreateCmd.String("app", "mnt-1", "inSITE Elastic Maintenance App Name (Default: mnt-1)")
+
 	if len(os.Args) < 2 {
 		fmt.Println("expected 'create' or 'import' subcommands")
 		os.Exit(1)
@@ -60,7 +65,7 @@ func main() {
 		for x, d := range app.IndexDates {
 			app.wg.Add(1)
 
-			go app.GenerateIndex(d, app.Spinners[x])
+			go app.GenerateIndex(d, app.Spinners[x], true)
 		}
 
 		// wait for all to complete
@@ -90,8 +95,35 @@ func main() {
 
 		sm.Stop()
 
+	case "createImport":
+		importCreateCmd.Parse(os.Args[2:])
+
+		if !app.ValidCreateArgs(impStartPtr, impEndPtr, importCreateCmd) {
+			os.Exit(1)
+		}
+
+		if !app.ValidImportArgs(impMntAppNamePtr, importCreateCmd) {
+			os.Exit(1)
+		}
+
+		// Create spin group
+		sm := app.CreateSpinGroups()
+
+		sm.Start()
+
+		for x, d := range app.IndexDates {
+			app.wg.Add(1)
+
+			go app.CreateImportIndex(d, app.Spinners[x])
+		}
+
+		// wait for all to complete
+		app.wg.Wait()
+
+		sm.Stop()
+
 	default:
-		fmt.Println("expected 'create' or 'import' subcommands")
+		fmt.Println("expected 'create', 'import' or 'createImport' subcommands")
 		os.Exit(1)
 	}
 

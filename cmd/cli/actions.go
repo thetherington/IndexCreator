@@ -11,6 +11,46 @@ import (
 	"github.com/thetherington/IndexCreator/internal/helpers"
 )
 
+func (app *App) CreateImportIndex(dt time.Time, s *ysmrr.Spinner) {
+	defer app.wg.Done()
+
+	app.wg.Add(1)
+
+	path, date := app.GenerateIndex(dt, s)
+
+	for _, arg := range []string{"settings", "mapping", "data"} {
+
+		s.UpdateMessage(fmt.Sprintf("%s -- %s", date, fmt.Sprintf("Importing %s...", arg)))
+
+		args := []string{
+			app.ElasticDumpPath,
+			fmt.Sprintf("--input=%s", filepath.Join(path, fmt.Sprintf("%s-%s-%s.json", app.Index, date, arg))),
+			fmt.Sprintf("--output=http://localhost:9200/%s-%s", app.Index, date),
+			fmt.Sprintf("--type=%s", arg),
+			"--concurrencyInterval=500",
+			"--limit=1000",
+			"--intervalCap=10",
+		}
+
+		// fmt.Println(args)
+		helpers.ElasticDumpRun(app.NodePath, args, s, date)
+
+	}
+
+	// Delete the work dir
+	s.UpdateMessage(fmt.Sprintf("%s -- Cleaning...", date))
+
+	err := os.RemoveAll(path)
+	if err != nil {
+		s.UpdateMessage(fmt.Sprintf("%s -- %s", date, err.Error()))
+		s.Error()
+		return
+	}
+
+	s.UpdateMessage(fmt.Sprintf("%s -- Complete", date))
+	s.Complete()
+}
+
 func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
 	defer app.wg.Done()
 
@@ -75,10 +115,10 @@ func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
 	s.Complete()
 }
 
-func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner) {
+func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (path string, new_date string) {
 	defer app.wg.Done()
 
-	new_date := dt.Format("2006.01.02")
+	new_date = dt.Format("2006.01.02")
 
 	r, err := os.Open(fmt.Sprintf("./%s", app.Filename))
 	if err != nil {
@@ -88,7 +128,7 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner) {
 	}
 	defer r.Close()
 
-	path := filepath.Join(app.Index, new_date)
+	path = filepath.Join(app.Index, new_date)
 
 	// Make directory based on date and Untar the reference tar.gz file
 	err = os.MkdirAll(path, MODE)
@@ -131,33 +171,39 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner) {
 		return
 	}
 
-	// Create new tar.gz file
-	s.UpdateMessage(fmt.Sprintf("%s -- Taring...", new_date))
+	if len(cleanup) > 0 {
 
-	w, err := os.Create(fmt.Sprintf("./%s/%s-%s.tar.gz", app.Index, app.Index, new_date))
-	if err != nil {
-		s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
-		s.Error()
-		return
+		// Create new tar.gz file
+		s.UpdateMessage(fmt.Sprintf("%s -- Taring...", new_date))
+
+		w, err := os.Create(fmt.Sprintf("./%s/%s-%s.tar.gz", app.Index, app.Index, new_date))
+		if err != nil {
+			s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
+			s.Error()
+			return
+		}
+
+		err = helpers.Tar(path, w)
+		if err != nil {
+			s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
+			s.Error()
+			return
+		}
+
+		// Delete the work dir
+		s.UpdateMessage(fmt.Sprintf("%s -- Cleaning...", new_date))
+
+		err = os.RemoveAll(path)
+		if err != nil {
+			s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
+			s.Error()
+			return
+		}
+
+		s.UpdateMessage(fmt.Sprintf("%s -- Complete", new_date))
+		s.Complete()
+
 	}
 
-	err = helpers.Tar(path, w)
-	if err != nil {
-		s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
-		s.Error()
-		return
-	}
-
-	// Delete the work dir
-	s.UpdateMessage(fmt.Sprintf("%s -- Cleaning...", new_date))
-
-	err = os.RemoveAll(path)
-	if err != nil {
-		s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
-		s.Error()
-		return
-	}
-
-	s.UpdateMessage(fmt.Sprintf("%s -- Complete", new_date))
-	s.Complete()
+	return
 }

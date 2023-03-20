@@ -220,10 +220,19 @@ func ElasticDumpRun(node_path string, args []string, s *ysmrr.Spinner, f string)
 
 	for err == nil {
 		line = strings.TrimSuffix(line, "\n")
-		if len(line) > 60 {
-			line = line[len(line)-60:]
+
+		if strings.Contains(args[3], "data") {
+			if strings.Contains(line, "offset") && strings.Contains(line, "|") {
+				line = strings.Split(line, "|")[1]
+				s.UpdateMessage(fmt.Sprintf("%s -- %s", f, line))
+			}
+		} else {
+			if len(line) > 60 {
+				line = line[len(line)-60:]
+			}
+			s.UpdateMessage(fmt.Sprintf("%s -- %s", f, line))
 		}
-		s.UpdateMessage(fmt.Sprintf("%s -- %s", f, line))
+
 		line, err = reader.ReadString('\n')
 	}
 
