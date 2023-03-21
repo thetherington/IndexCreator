@@ -23,6 +23,7 @@ var importCmd = &cobra.Command{
 Example Usage:
   ./IndexCreator import log-syslog-informational-2023.03.15.tar.gz
   ./IndexCreator import log-syslog-informational-directory`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var app app.Config
 
@@ -51,13 +52,5 @@ func init() {
 	rootCmd.AddCommand(importCmd)
 
 	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// importCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// importCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	importCmd.Flags().StringVarP(&mntApp, "app", "a", "mnt-1", "inSITE Elasticsearch Maintenance Program")
 }

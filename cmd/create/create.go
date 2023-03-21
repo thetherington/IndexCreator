@@ -23,6 +23,7 @@ var CreateCmd = &cobra.Command{
 	
 Example Usage:
   ./IndexCreator create --start 2023-03-20 --end 2023-03-25 log-syslog-informational-2023.03.15.tar.gz`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var app app.Config
 
@@ -50,17 +51,7 @@ Example Usage:
 }
 
 func init() {
-	// rootCmd.AddCommand(createCmd)
-
 	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	CreateCmd.Flags().StringVarP(&start, "start", "s", "", "Start Date Format (YYYY-MM-DD)")
 	CreateCmd.Flags().StringVarP(&end, "end", "e", "", "End Date Format (YYYY-MM-DD)")
 
