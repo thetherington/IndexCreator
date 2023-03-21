@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -11,21 +11,21 @@ import (
 	"github.com/thetherington/IndexCreator/internal/helpers"
 )
 
-func (app *App) CreateImportIndex(dt time.Time, s *ysmrr.Spinner) {
-	defer app.wg.Done()
+func (config *Config) CreateImportIndex(dt time.Time, s *ysmrr.Spinner) {
+	defer config.Wg.Done()
 
-	app.wg.Add(1)
+	config.Wg.Add(1)
 
-	path, date := app.GenerateIndex(dt, s)
+	path, date := config.GenerateIndex(dt, s)
 
 	for _, arg := range []string{"settings", "mapping", "data"} {
 
 		s.UpdateMessage(fmt.Sprintf("%s -- %s", date, fmt.Sprintf("Importing %s...", arg)))
 
 		args := []string{
-			app.ElasticDumpPath,
-			fmt.Sprintf("--input=%s", filepath.Join(path, fmt.Sprintf("%s-%s-%s.json", app.Index, date, arg))),
-			fmt.Sprintf("--output=http://localhost:9200/%s-%s", app.Index, date),
+			config.ElasticDumpPath,
+			fmt.Sprintf("--input=%s", filepath.Join(path, fmt.Sprintf("%s-%s-%s.json", config.Index, date, arg))),
+			fmt.Sprintf("--output=http://localhost:9200/%s-%s", config.Index, date),
 			fmt.Sprintf("--type=%s", arg),
 			"--concurrencyInterval=500",
 			"--limit=1000",
@@ -33,7 +33,7 @@ func (app *App) CreateImportIndex(dt time.Time, s *ysmrr.Spinner) {
 		}
 
 		// fmt.Println(args)
-		helpers.ElasticDumpRun(app.NodePath, args, s, date)
+		helpers.ElasticDumpRun(config.NodePath, args, s, date)
 
 	}
 
@@ -51,8 +51,8 @@ func (app *App) CreateImportIndex(dt time.Time, s *ysmrr.Spinner) {
 	s.Complete()
 }
 
-func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
-	defer app.wg.Done()
+func (config *Config) ImportIndex(f string, s *ysmrr.Spinner) {
+	defer config.Wg.Done()
 
 	r, err := os.Open(fmt.Sprintf("./%s", f))
 	if err != nil {
@@ -88,7 +88,7 @@ func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
 		s.UpdateMessage(fmt.Sprintf("%s -- %s", f, fmt.Sprintf("Importing %s...", arg)))
 
 		args := []string{
-			app.ElasticDumpPath,
+			config.ElasticDumpPath,
 			fmt.Sprintf("--input=%s", filepath.Join(path, fmt.Sprintf("%s-%s.json", index, arg))),
 			fmt.Sprintf("--output=http://localhost:9200/%s", index),
 			fmt.Sprintf("--type=%s", arg),
@@ -97,7 +97,7 @@ func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
 			"--intervalCap=10",
 		}
 
-		helpers.ElasticDumpRun(app.NodePath, args, s, f)
+		helpers.ElasticDumpRun(config.NodePath, args, s, f)
 
 	}
 
@@ -115,12 +115,12 @@ func (app *App) ImportIndex(f string, s *ysmrr.Spinner) {
 	s.Complete()
 }
 
-func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (path string, new_date string) {
-	defer app.wg.Done()
+func (config *Config) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (path string, new_date string) {
+	defer config.Wg.Done()
 
 	new_date = dt.Format("2006.01.02")
 
-	r, err := os.Open(fmt.Sprintf("./%s", app.Filename))
+	r, err := os.Open(fmt.Sprintf("./%s", config.Filename))
 	if err != nil {
 		s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
 		s.Error()
@@ -128,7 +128,7 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (
 	}
 	defer r.Close()
 
-	path = filepath.Join(app.Index, new_date)
+	path = filepath.Join(config.Index, new_date)
 
 	// Make directory based on date and Untar the reference tar.gz file
 	err = os.MkdirAll(path, MODE)
@@ -146,8 +146,8 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (
 	}
 
 	// replace Index name to new Index name
-	old_index_pattern := fmt.Sprintf("%s-%s", app.Index, app.FileDate)
-	new_index_pattern := fmt.Sprintf("%s-%s", app.Index, new_date)
+	old_index_pattern := fmt.Sprintf("%s-%s", config.Index, config.FileDate)
+	new_index_pattern := fmt.Sprintf("%s-%s", config.Index, new_date)
 
 	s.UpdateMessage(fmt.Sprintf("%s -- Replacing (%s with %s)...", new_date, old_index_pattern, new_index_pattern))
 
@@ -159,7 +159,7 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (
 	}
 
 	// replace @timestamp with new date value
-	old_date_pattern := strings.ReplaceAll(app.FileDate, ".", "-")
+	old_date_pattern := strings.ReplaceAll(config.FileDate, ".", "-")
 	new_date_pattern := strings.ReplaceAll(new_date, ".", "-")
 
 	s.UpdateMessage(fmt.Sprintf("%s -- Replacing (%s with %s)...", new_date, old_date_pattern, new_date_pattern))
@@ -176,7 +176,7 @@ func (app *App) GenerateIndex(dt time.Time, s *ysmrr.Spinner, cleanup ...bool) (
 		// Create new tar.gz file
 		s.UpdateMessage(fmt.Sprintf("%s -- Taring...", new_date))
 
-		w, err := os.Create(fmt.Sprintf("./%s/%s-%s.tar.gz", app.Index, app.Index, new_date))
+		w, err := os.Create(fmt.Sprintf("./%s/%s-%s.tar.gz", config.Index, config.Index, new_date))
 		if err != nil {
 			s.UpdateMessage(fmt.Sprintf("%s -- %s", new_date, err.Error()))
 			s.Error()
